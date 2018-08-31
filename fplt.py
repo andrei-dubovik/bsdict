@@ -1,6 +1,6 @@
 from functools import singledispatch
-import math
 import operator
+import numpy as np
 
 # Define numerical tolerance when testing for equality
 # (Relative tolerance is disabled on purpose because it is inconsistent with
@@ -9,34 +9,81 @@ abs_tol = 1e-6
 default_enc = 'utf-8'
 
 # Supported types:
-# none, bool, int, float, complex,
+# none,
+# bool, int, float, complex,
 # str, bytes, bytearray,
-# list, tuple, dict, set, frozenset
+# list, tuple, dict, set, frozenset,
+# numpy.ndarray (bool, int, float, complex).
+
+# Prepare numpy.ndarray subtype wrappers
+class ndarray_int(np.ndarray):
+    pass
+
+class ndarray_float(np.ndarray):
+    pass
+
+class ndarray_complex(np.ndarray):
+    pass
 
 # Define upcasting rules
-upcast_tree = {complex: 2, float: 2*3, int: 2*3*5, bool: 2*3*5*7,
-               list: 11, tuple: 11*13,
-               bytearray: 17, bytes: 17*19, str: 17*19*23,
-               set: 29, frozenset: 29*31}
-upcast_func = {b:a for a,b in upcast_tree.items()}
-upcast_func[1] = lambda x: fqtn(x)
-upcast_func[17] = lambda x: bytearray(x.encode(default_enc) if type(x) == str else x)
-upcast_func[17*19] = lambda x: bytes(x.encode(default_enc) if type(x) == str else x)
+def encode_rules(tree, func):
+    '''Encode a hierarchy with the only branch point at the root'''
+    func = {(i,j):func.get(n, n) for i,l in enumerate(tree) for j,n in enumerate(l)}
+    tree = {n:(i,j) for i,l in enumerate(tree) for j,n in enumerate(l)}
+    return tree, func
+
+def lcp(x, y):
+    '''Least common parent'''
+    return (x[0], min(x[1], y[1])) if x[0] == y[0] else (0,0)
+
+upcast_tree = ([
+    [0],
+    [complex, float, int, bool],
+    [list, tuple],
+    [bytearray, bytes, str],
+    [set, frozenset],
+    [ndarray_complex, ndarray_float, ndarray_int],
+])
+
+upcast_func = {
+    0: lambda x: fqtn(x),
+    bytearray: lambda x: bytearray(x.encode(default_enc) if type(x) == str else x),
+    bytes: lambda x: bytes(x.encode(default_enc) if type(x) == str else x),
+    ndarray_complex: lambda x: x.view(ndarray_complex),
+    ndarray_float: lambda x: x.view(ndarray_float),
+    ndarray_int: lambda x: x.view(ndarray_int),
+}
+
+upcast_tree, upcast_func = encode_rules(upcast_tree, upcast_func)
 
 def fqtn(x):
     '''Get the fully qualified name of type of x'''
-    if x == None:
-        return ''
     t = type(x)
-    return t.__module__ + '.' + t.__name__
+    if t.__name__ == 'NoneType':
+        return ''
+    if t == np.ndarray:
+        return x.dtype.name + '.' + t.__name__ + '.' + t.__module__
+    return t.__name__ + '.' + t.__module__
 
 def upcast(x, y):
-    '''Upcast numerical arguments to the least general common type'''
-    p = math.gcd(*(upcast_tree.get(type(v), 1) for v in (x, y)))
+    '''Upcast arguments to the least general common type'''
+    p = lcp(*(upcast_tree.get(type(v), (0,0)) for v in (x, y)))
     return tuple(upcast_func[p](v) for v in (x, y))
+
+def downcast_ndarray(x):
+    '''Wrap ndarray subtypes into own classes'''
+    if type(x) == np.ndarray:
+        if x.dtype.kind in ['b', 'i', 'u']:
+            return x.view(ndarray_int)
+        if x.dtype.kind == 'f':
+            return x.view(ndarray_float)
+        if x.dtype.kind == 'c':
+            return x.view(ndarray_complex)
+    return x
 
 def lt(x, y):
     '''Test whether x < y'''
+    x, y = downcast_ndarray(x), downcast_ndarray(y)
     return _lt(x, y) if type(x) == type(y) else _lt(*upcast(x, y))
 
 @singledispatch
@@ -57,11 +104,12 @@ def _(x, y):
 
 @_lt.register(float)
 def _(x, y):
-    return x + abs_tol < y
+    return not np.isnan(y) and (np.isnan(x) or x + abs_tol < y)
 
 @_lt.register(complex)
 def _(x, y):
-    return _lt(x.real, y.real) or (not _lt(y.real, x.real) and _lt(x.imag, y.imag))
+    xr, xi, yr, yi = x.real, x.imag, y.real, y.imag
+    return _lt(xr, yr) or (not _lt(yr, xr) and _lt(xi, yi))
 
 # Define comparion operators for built-in string and bytes types
 def lex_len(x, y, lt = operator.lt):
@@ -108,3 +156,37 @@ def _(x, y):
 @_lt.register(frozenset)
 def _(x, y):
     return _lt(set(x), set(y))
+
+# Numpy ndarray
+def compare_shapes(func):
+    '''A wrapper around func(x,y) that first compares shapes of x and y'''
+    def wrapper(x, y):
+        xs, ys = x.shape, y.shape
+        if _lt(xs, ys):
+            return True
+        if _lt(ys, xs):
+            return False
+        return func(x, y)
+    return wrapper
+
+@_lt.register(ndarray_int)
+@compare_shapes
+def _(x, y):
+    diff = (x < y)[x != y]
+    return diff[0] if len(diff) else False
+
+@_lt.register(ndarray_float)
+@compare_shapes
+def _(x, y):
+    xr, yr = np.nan_to_num(x), np.nan_to_num(y)
+    xm, ym = np.isnan(x), np.isnan(y)
+    xlty = ~ym & (xm | (xr + abs_tol < yr))
+    yltx = ~xm & (ym | (yr + abs_tol < xr))
+    diff = xlty[xlty | yltx]
+    return diff[0] if len(diff) else False
+
+@_lt.register(ndarray_complex)
+def _(x, y):
+    xr, xi = np.real(x).view(ndarray_float), np.imag(x).view(ndarray_float)
+    yr, yi = np.real(y).view(ndarray_float), np.imag(y).view(ndarray_float)
+    return _lt(xr, yr) or (not _lt(yr, xr) and _lt(xi, yi))
