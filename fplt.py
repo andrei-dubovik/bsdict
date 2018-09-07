@@ -2,10 +2,7 @@ from functools import singledispatch
 import operator
 import numpy as np
 
-# Define numerical tolerance when testing for equality
-# (Relative tolerance is disabled on purpose because it is inconsistent with
-# lexicographical ordering)
-abs_tol = 1e-6
+# Define global constants
 default_enc = 'utf-8'
 
 # Supported types:
@@ -81,13 +78,13 @@ def downcast_ndarray(x):
             return x.view(ndarray_complex)
     return x
 
-def lt(x, y):
+def lt(x, y, tol = 0.0):
     '''Test whether x < y'''
     x, y = downcast_ndarray(x), downcast_ndarray(y)
-    return _lt(x, y) if type(x) == type(y) else _lt(*upcast(x, y))
+    return _lt(x, y, tol) if type(x) == type(y) else _lt(*upcast(x, y), tol)
 
 @singledispatch
-def _lt(x, y):
+def _lt(x, y, tol):
     '''Test whether x < y when both have the same type'''
     if x == None:
         return False
@@ -95,98 +92,98 @@ def _lt(x, y):
 
 # Define comparion operators for built-in numeric types
 @_lt.register(bool)
-def _(x, y):
+def _(x, y, tol):
     return x < y
 
 @_lt.register(int)
-def _(x, y):
+def _(x, y, tol):
     return x < y
 
 @_lt.register(float)
-def _(x, y):
-    return not np.isnan(y) and (np.isnan(x) or x + abs_tol < y)
+def _(x, y, tol):
+    return not np.isnan(y) and (np.isnan(x) or x + tol < y)
 
 @_lt.register(complex)
-def _(x, y):
+def _(x, y, tol):
     xr, xi, yr, yi = x.real, x.imag, y.real, y.imag
-    return _lt(xr, yr) or (not _lt(yr, xr) and _lt(xi, yi))
+    return _lt(xr, yr, tol) or (not _lt(yr, xr, tol) and _lt(xi, yi, tol))
 
 # Define comparion operators for built-in string and bytes types
-def lex_len(x, y, lt = operator.lt):
+def lex_len(x, y, tol, lt = operator.lt):
     '''x < y if len(x) < len(y) or len(x) == len(y) and x < y'''
     lx, ly = len(x), len(y)
     return lx < ly or (lx == ly and lt(x, y))
 
 @_lt.register(str)
-def _(x, y):
-    return lex_len(x, y)
+def _(x, y, tol):
+    return lex_len(x, y, tol)
 
 @_lt.register(bytes)
-def _(x, y):
-    return lex_len(x, y)
+def _(x, y, tol):
+    return lex_len(x, y, tol)
 
 @_lt.register(bytearray)
-def _(x, y):
-    return lex_len(x, y)
+def _(x, y, tol):
+    return lex_len(x, y, tol)
 
 # Define comparison operators for built-in containers
-def lex_iter(iterator):
+def lex_iter(iterator, tol):
     '''Lexicographical comparator'''
     for x, y in iterator:
-        if lt(x, y): return True
-        if lt(y, x): return False
+        if lt(x, y, tol): return True
+        if lt(y, x, tol): return False
     return False
 
 @_lt.register(list)
-def _(x, y):
-    return lex_len(x, y, lt = lambda x, y: lex_iter(zip(x, y)))
+def _(x, y, tol):
+    return lex_len(x, y, tol, lt = lambda x, y: lex_iter(zip(x, y), tol))
 
 @_lt.register(tuple)
-def _(x, y):
-    return _lt(list(x), list(y))
+def _(x, y, tol):
+    return _lt(list(x), list(y), tol)
 
 @_lt.register(dict)
-def _(x, y):
-    return _lt(sorted(x.items()), sorted(y.items()))
+def _(x, y, tol):
+    return _lt(sorted(x.items()), sorted(y.items()), tol)
 
 @_lt.register(set)
-def _(x, y):
-    return _lt(sorted(x), sorted(y))
+def _(x, y, tol):
+    return _lt(sorted(x), sorted(y), tol)
 
 @_lt.register(frozenset)
-def _(x, y):
-    return _lt(set(x), set(y))
+def _(x, y, tol):
+    return _lt(set(x), set(y), tol)
 
 # Numpy ndarray
 def compare_shapes(func):
     '''A wrapper around func(x,y) that first compares shapes of x and y'''
-    def wrapper(x, y):
+    def wrapper(x, y, tol):
         xs, ys = x.shape, y.shape
-        if _lt(xs, ys):
+        if _lt(xs, ys, tol):
             return True
-        if _lt(ys, xs):
+        if _lt(ys, xs, tol):
             return False
-        return func(x, y)
+        return func(x, y, tol)
     return wrapper
 
 @_lt.register(ndarray_int)
 @compare_shapes
-def _(x, y):
+def _(x, y, tol):
     diff = (x < y)[x != y]
     return diff[0] if len(diff) else False
 
 @_lt.register(ndarray_float)
 @compare_shapes
-def _(x, y):
+def _(x, y, tol):
     xr, yr = np.nan_to_num(x), np.nan_to_num(y)
     xm, ym = np.isnan(x), np.isnan(y)
-    xlty = ~ym & (xm | (xr + abs_tol < yr))
-    yltx = ~xm & (ym | (yr + abs_tol < xr))
+    xlty = ~ym & (xm | (xr + tol < yr))
+    yltx = ~xm & (ym | (yr + tol < xr))
     diff = xlty[xlty | yltx]
     return diff[0] if len(diff) else False
 
 @_lt.register(ndarray_complex)
-def _(x, y):
+def _(x, y, tol):
     xr, xi = np.real(x).view(ndarray_float), np.imag(x).view(ndarray_float)
     yr, yi = np.real(y).view(ndarray_float), np.imag(y).view(ndarray_float)
-    return _lt(xr, yr) or (not _lt(yr, xr) and _lt(xi, yi))
+    return _lt(xr, yr, tol) or (not _lt(yr, xr, tol) and _lt(xi, yi, tol))
