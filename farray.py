@@ -75,6 +75,8 @@ class farray(marray):
         self.datadir = datadir
         self.array_f = array_f
         self.id = 0
+        if not path.exists(datadir):
+            os.makedirs(datadir)
 
     def insert(self, i, key, value):
         prefix = path.join(self.datadir, str(self.id))
@@ -95,7 +97,7 @@ class farray(marray):
 
 def newarray(datadir = None, clear = False):
     '''Make a simple array of records that can be stored in memory or on disk, or load one from disk'''
-    if clear:
+    if clear and path.isdir(datadir):
         for file in glob(path.join(datadir, '*.pickle')):
             os.remove(file)
     if datadir:
