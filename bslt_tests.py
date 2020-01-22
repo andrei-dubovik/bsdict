@@ -1,11 +1,11 @@
 import unittest
 import importlib
-import fplt
-from fplt import *
+import bslt
+from bslt import *
 import numpy as np
 
 # Force reloading (needed during the development cycle)
-importlib.reload(fplt)
+importlib.reload(bslt)
 
 def gt(x, y, tol):
     '''Test whether x > y'''
