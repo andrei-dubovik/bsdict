@@ -7,7 +7,7 @@ default_enc = 'utf-8'
 
 # Supported types:
 # none,
-# bool, int, float, complex,
+# bool, int, float (incl. nan), complex,
 # str, bytes, bytearray,
 # list, tuple, dict, set, frozenset,
 # numpy.ndarray (bool, int, float, complex).
