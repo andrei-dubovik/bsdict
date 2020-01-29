@@ -78,13 +78,13 @@ def downcast_ndarray(x):
             return x.view(ndarray_complex)
     return x
 
-def lt(x, y, tol = 0.0):
+def lt(x, y):
     '''Test whether x < y'''
     x, y = downcast_ndarray(x), downcast_ndarray(y)
-    return _lt(x, y, tol) if type(x) == type(y) else _lt(*upcast(x, y), tol)
+    return _lt(x, y) if type(x) == type(y) else _lt(*upcast(x, y))
 
 @singledispatch
-def _lt(x, y, tol):
+def _lt(x, y):
     '''Test whether x < y when both have the same type'''
     if x == None:
         return False
@@ -92,98 +92,98 @@ def _lt(x, y, tol):
 
 # Define comparion operators for built-in numeric types
 @_lt.register(bool)
-def _(x, y, tol):
+def _(x, y):
     return x < y
 
 @_lt.register(int)
-def _(x, y, tol):
+def _(x, y):
     return x < y
 
 @_lt.register(float)
-def _(x, y, tol):
-    return not np.isnan(y) and (np.isnan(x) or x + tol < y)
+def _(x, y):
+    return not np.isnan(y) and (np.isnan(x) or x < y)
 
 @_lt.register(complex)
-def _(x, y, tol):
+def _(x, y):
     xr, xi, yr, yi = x.real, x.imag, y.real, y.imag
-    return _lt(xr, yr, tol) or (not _lt(yr, xr, tol) and _lt(xi, yi, tol))
+    return _lt(xr, yr) or (not _lt(yr, xr) and _lt(xi, yi))
 
 # Define comparion operators for built-in string and bytes types
-def lex_len(x, y, tol, lt = operator.lt):
+def lex_len(x, y, lt = operator.lt):
     '''x < y if len(x) < len(y) or len(x) == len(y) and x < y'''
     lx, ly = len(x), len(y)
     return lx < ly or (lx == ly and lt(x, y))
 
 @_lt.register(str)
-def _(x, y, tol):
-    return lex_len(x, y, tol)
+def _(x, y):
+    return lex_len(x, y)
 
 @_lt.register(bytes)
-def _(x, y, tol):
-    return lex_len(x, y, tol)
+def _(x, y):
+    return lex_len(x, y)
 
 @_lt.register(bytearray)
-def _(x, y, tol):
-    return lex_len(x, y, tol)
+def _(x, y):
+    return lex_len(x, y)
 
 # Define comparison operators for built-in containers
-def lex_iter(iterator, tol):
+def lex_iter(iterator):
     '''Lexicographical comparator'''
     for x, y in iterator:
-        if lt(x, y, tol): return True
-        if lt(y, x, tol): return False
+        if lt(x, y): return True
+        if lt(y, x): return False
     return False
 
 @_lt.register(list)
-def _(x, y, tol):
-    return lex_len(x, y, tol, lt = lambda x, y: lex_iter(zip(x, y), tol))
+def _(x, y):
+    return lex_len(x, y, lt = lambda x, y: lex_iter(zip(x, y)))
 
 @_lt.register(tuple)
-def _(x, y, tol):
-    return _lt(list(x), list(y), tol)
+def _(x, y):
+    return _lt(list(x), list(y))
 
 @_lt.register(dict)
-def _(x, y, tol):
-    return _lt(sorted(x.items()), sorted(y.items()), tol)
+def _(x, y):
+    return _lt(sorted(x.items()), sorted(y.items()))
 
 @_lt.register(set)
-def _(x, y, tol):
-    return _lt(sorted(x), sorted(y), tol)
+def _(x, y):
+    return _lt(sorted(x), sorted(y))
 
 @_lt.register(frozenset)
-def _(x, y, tol):
-    return _lt(set(x), set(y), tol)
+def _(x, y):
+    return _lt(set(x), set(y))
 
 # Numpy ndarray
 def compare_shapes(func):
     '''A wrapper around func(x,y) that first compares shapes of x and y'''
-    def wrapper(x, y, tol):
+    def wrapper(x, y):
         xs, ys = x.shape, y.shape
-        if _lt(xs, ys, tol):
+        if _lt(xs, ys):
             return True
-        if _lt(ys, xs, tol):
+        if _lt(ys, xs):
             return False
-        return func(x, y, tol)
+        return func(x, y)
     return wrapper
 
 @_lt.register(ndarray_int)
 @compare_shapes
-def _(x, y, tol):
+def _(x, y):
     diff = (x < y)[x != y]
     return diff[0] if len(diff) else False
 
 @_lt.register(ndarray_float)
 @compare_shapes
-def _(x, y, tol):
+def _(x, y):
     xr, yr = np.nan_to_num(x), np.nan_to_num(y)
     xm, ym = np.isnan(x), np.isnan(y)
-    xlty = ~ym & (xm | (xr + tol < yr))
-    yltx = ~xm & (ym | (yr + tol < xr))
+    xlty = ~ym & (xm | (xr < yr))
+    yltx = ~xm & (ym | (yr < xr))
     diff = xlty[xlty | yltx]
     return diff[0] if len(diff) else False
 
 @_lt.register(ndarray_complex)
-def _(x, y, tol):
+def _(x, y):
     xr, xi = np.real(x).view(ndarray_float), np.imag(x).view(ndarray_float)
     yr, yi = np.real(y).view(ndarray_float), np.imag(y).view(ndarray_float)
-    return _lt(xr, yr, tol) or (not _lt(yr, xr, tol) and _lt(xi, yi, tol))
+    return _lt(xr, yr) or (not _lt(yr, xr) and _lt(xi, yi))

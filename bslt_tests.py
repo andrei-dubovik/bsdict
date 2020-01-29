@@ -7,29 +7,29 @@ import numpy as np
 # Force reloading (needed during the development cycle)
 importlib.reload(bslt)
 
-def gt(x, y, tol):
+def gt(x, y):
     '''Test whether x > y'''
-    return lt(y, x, tol)
+    return lt(y, x)
 
-def eq(x, y, tol):
+def eq(x, y):
     '''Test whether x == y'''
-    return not (lt(x, y, tol) or gt(x, y, tol))
+    return not (lt(x, y) or gt(x, y))
 
 class Galaxy():
     pass
 
 class TestsLibrary(unittest.TestCase):
 
-    def lt_test(self, x, y, tol = 0.0):
+    def lt_test(self, x, y):
         '''Test under the assumption that x < y'''
-        self.assertTrue(lt(x, y, tol))
-        self.assertFalse(lt(y, x, tol))
-        self.assertFalse(lt(x, x, tol))
-        self.assertFalse(lt(y, y, tol))
+        self.assertTrue(lt(x, y))
+        self.assertFalse(lt(y, x))
+        self.assertFalse(lt(x, x))
+        self.assertFalse(lt(y, y))
 
-    def eq_test(self, x, y, tol = 0.0):
+    def eq_test(self, x, y):
         '''Test under the assumption that x == y'''
-        self.assertTrue(eq(x, y, tol))
+        self.assertTrue(eq(x, y))
 
 class BuiltinTests(TestsLibrary):
 
@@ -75,27 +75,21 @@ class BuiltinTests(TestsLibrary):
         self.eq_test([1,2], (1,2))
         self.eq_test(set([1,2]), frozenset([1,2]))
 
-    def test_sameness(self):
-        e = 1e-8
-        self.eq_test(1, 1-e, tol = 2*e)
-        self.eq_test(1, 1+e*1J, tol = 2*e)
-        self.eq_test([1,2,3], [1-e,2+e,3], tol = 2*e)
-
     def test_unsupported(self):
         with self.assertRaises(RuntimeError):
             lt(Galaxy(), Galaxy())
 
 class NumpyTests(TestsLibrary):
 
-    def lt_test(self, x, y, tol = 0.0):
+    def lt_test(self, x, y):
         '''Convert arguments to numpy arrays and apply tests'''
         with np.errstate(all = 'raise'):
-            super().lt_test(np.array(x), np.array(y), tol)
+            super().lt_test(np.array(x), np.array(y))
 
-    def eq_test(self, x, y, tol = 0.0):
+    def eq_test(self, x, y):
         '''Convert arguments to numpy arrays and apply tests'''
         with np.errstate(all = 'raise'):
-            super().eq_test(np.array(x), np.array(y), tol)
+            super().eq_test(np.array(x), np.array(y))
 
     def test_sametype(self):
         self.lt_test([1,2,3], [1,3,0])
@@ -119,10 +113,6 @@ class NumpyTests(TestsLibrary):
         self.eq_test([1,2,3], [1.0,2.0,3.0])
         self.eq_test([1,2], [1+0J,2+0J])
         self.eq_test([1.0], [1-0J])
-
-    def test_sameness(self):
-        e = 1e-8
-        self.eq_test([1+1J,-2,np.nan], [1+(1-e)*1J,-2+e-e*1J,np.nan], tol = 2*e)
 
 # Run unit tests
 unittest.main(verbosity = 2, exit = False)
