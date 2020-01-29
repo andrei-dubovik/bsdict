@@ -2,9 +2,6 @@ from functools import singledispatch
 import operator
 import numpy as np
 
-# Define global constants
-default_enc = 'utf-8'
-
 # Supported types:
 # none,
 # bool, int, float (incl. nan), complex,
@@ -22,37 +19,6 @@ class ndarray_float(np.ndarray):
 class ndarray_complex(np.ndarray):
     pass
 
-# Define upcasting rules
-def encode_rules(tree, func):
-    '''Encode a hierarchy with the only branch point at the root'''
-    func = {(i,j):func.get(n, n) for i,l in enumerate(tree) for j,n in enumerate(l)}
-    tree = {n:(i,j) for i,l in enumerate(tree) for j,n in enumerate(l)}
-    return tree, func
-
-def lcp(x, y):
-    '''Least common parent'''
-    return (x[0], min(x[1], y[1])) if x[0] == y[0] else (0,0)
-
-upcast_tree = ([
-    [0],
-    [complex, float, int, bool],
-    [list, tuple],
-    [bytearray, bytes, str],
-    [set, frozenset],
-    [ndarray_complex, ndarray_float, ndarray_int],
-])
-
-upcast_func = {
-    0: lambda x: fqtn(x),
-    bytearray: lambda x: bytearray(x.encode(default_enc) if type(x) == str else x),
-    bytes: lambda x: bytes(x.encode(default_enc) if type(x) == str else x),
-    ndarray_complex: lambda x: x.view(ndarray_complex),
-    ndarray_float: lambda x: x.view(ndarray_float),
-    ndarray_int: lambda x: x.view(ndarray_int),
-}
-
-upcast_tree, upcast_func = encode_rules(upcast_tree, upcast_func)
-
 def fqtn(x):
     '''Get the fully qualified name of type of x'''
     t = type(x)
@@ -61,11 +27,6 @@ def fqtn(x):
     if t == np.ndarray:
         return x.dtype.name + '.' + t.__name__ + '.' + t.__module__
     return t.__name__ + '.' + t.__module__
-
-def upcast(x, y):
-    '''Upcast arguments to the least general common type'''
-    p = lcp(*(upcast_tree.get(type(v), (0,0)) for v in (x, y)))
-    return tuple(upcast_func[p](v) for v in (x, y))
 
 def downcast_ndarray(x):
     '''Wrap ndarray subtypes into own classes'''
@@ -81,7 +42,7 @@ def downcast_ndarray(x):
 def lt(x, y):
     '''Test whether x < y'''
     x, y = downcast_ndarray(x), downcast_ndarray(y)
-    return _lt(x, y) if type(x) == type(y) else _lt(*upcast(x, y))
+    return _lt(x, y) if type(x) == type(y) else _lt(fqtn(x), fqtn(y))
 
 @singledispatch
 def _lt(x, y):

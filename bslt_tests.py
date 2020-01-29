@@ -66,14 +66,11 @@ class BuiltinTests(TestsLibrary):
         self.lt_test(None, False)
         self.lt_test(1, "ab")
         self.lt_test(set([1]), {'a': 1})
-
-    def test_upcasting(self):
-        self.eq_test(0, False)
-        self.eq_test(1, True)
-        self.eq_test(1, 1.0 + 0.0J)
-        self.eq_test("a", b"a")
-        self.eq_test([1,2], (1,2))
-        self.eq_test(set([1,2]), frozenset([1,2]))
+        self.lt_test([1,2], (1,2))
+        # builtin vs numpy:
+        self.lt_test('a', np.array(0))
+        self.lt_test(0J, np.array(0))
+        self.lt_test(np.array(0), bytearray(0))
 
     def test_unsupported(self):
         with self.assertRaises(RuntimeError):
@@ -93,7 +90,7 @@ class NumpyTests(TestsLibrary):
 
     def test_sametype(self):
         self.lt_test([1,2,3], [1,3,0])
-        self.lt_test([1,np.nan], [1,-1])
+        self.lt_test([1,np.nan], [1,-1.0])
         self.lt_test([1,np.nan], [1,-np.inf])
         self.lt_test([1,np.nan,2], [1,np.nan,np.inf])
         self.lt_test([1+1J, 2+2J], [1+1J, 3+1J])
@@ -108,11 +105,7 @@ class NumpyTests(TestsLibrary):
     def test_crosstype(self):
         self.lt_test([1,2], [1.0,2.1])
         self.lt_test([1,2], [1.0+0.1J,2.0])
-
-    def test_upcasting(self):
-        self.eq_test([1,2,3], [1.0,2.0,3.0])
-        self.eq_test([1,2], [1+0J,2+0J])
-        self.eq_test([1.0], [1-0J])
+        self.lt_test([1,-1], [1,np.nan])
 
 # Run unit tests
 unittest.main(verbosity = 2, exit = False)
