@@ -67,6 +67,9 @@ class marray():
     def __delitem__(self, i):
         del self.array[i]
 
+    def clear(self):
+        del self.array[:]
+
 class farray(marray):
     '''A simple on-disk array of records'''
 
@@ -92,7 +95,7 @@ class farray(marray):
     def clear(self):
         for r in self:
             r.clear()
-        del self.array[:]
+        super().clear()
         os.remove(self.array_f)
 
 def newarray(datadir = None, clear = False):

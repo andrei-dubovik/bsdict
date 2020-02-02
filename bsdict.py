@@ -63,3 +63,45 @@ class bsdict():
         else:
             raise KeyError(key)
 
+    def keys(self):
+        for r in self.array:
+            yield r.key
+
+    def __reversed__(self):
+        for r in reversed(self.array):
+            yield r.key
+
+    def values(self):
+        for r in self.array:
+            yield r.value
+
+    def items(self):
+        for r in self.array:
+            yield (r.key, r.value)
+
+    def __iter__(self):
+        return self.keys();
+
+    def __repr__(self):
+        txt = ', '.join(repr(k) + ': ' + repr(v) for k, v in self.items())
+        return '{' + txt + '}'
+
+    def clear(self):
+        self.array.clear()
+
+    def pop(self, key):
+        i, status = self.search(key)
+        if status:
+            v = self.array[i].value
+            del self.array[i]
+            return v
+        else:
+            raise KeyError(key)
+
+    def popitem(self):
+        if len(self) == 0:
+            raise KeyError('popitem(): dictionary is empty')
+        r = self.array[-1]
+        k, v = r.key, r.value
+        del self.array[-1]
+        return k, v
