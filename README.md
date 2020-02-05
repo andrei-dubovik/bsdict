@@ -11,7 +11,6 @@ Internally, a total lexicographical order is defined over all supported objects.
 
 BSDict can be initialized in-memory or on-disc (persistent storage). If BSDict is initialized on-disc, then keys and values are stored in memory only as long as the client application has any references to them. So, the dictionary can be larger than available RAM.
 
-This packages has been originally written to help memoize functions that accept complex data structures, including floating-point data, as arguments. Such functions are common in data analysis.
 
 # Basic Usage
 
@@ -33,6 +32,29 @@ from bsdict import bsdict
 data = bsdict(datadir = 'cache')
 # ...
 data.clear()
+```
+
+# Memoization
+
+BSDict has been originally written to help memoize functions that accept complex data structures, including floating-point data, as arguments. (Such functions are common in data analysis.) This package includes a simple memoization wrapper that uses BSDict for caching the results.
+
+```python
+from time import sleep
+from bsdict import memoizer
+
+cached = memoizer(verbose = True)
+
+# Persistent memoization
+#cached = memoizer(datadir = 'cache', verbose = True)
+
+@cached
+def mysum(x, y):
+    print("Computing a challenging math problem...")
+    sleep(1)
+    return x + y
+
+z = mysum(1, 2)
+z = mysum(1, 2)
 ```
 
 # Warning

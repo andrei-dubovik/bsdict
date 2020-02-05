@@ -1,5 +1,9 @@
+from functools import wraps
 from bslt import *
 from farray import *
+
+# Define global constants
+WARNING = 'Memoization: loading cached results for {}(...)'
 
 class bsdict():
     def __init__(self, datadir = None, clear = False):
@@ -105,3 +109,35 @@ class bsdict():
         k, v = r.key, r.value
         del self.array[-1]
         return k, v
+
+
+def qualname(func):
+    '''Get a qualified name of a function'''
+    if func.__module__ == '__main__':
+        return func.__name__
+    else:
+        return func.__module__ + '.' + func.__name__
+
+def memoizer(datadir = None, verbose = False):
+    '''A basic memoizer that uses bsdict for storage'''
+    cache = bsdict(datadir = datadir)
+
+    def decorator(func):
+        sig = (func.__code__.co_code, func.__code__.co_consts)
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            key = (sig, args, kwargs)
+            try:
+                value = cache[key]
+                if verbose:
+                    print(WARNING.format(qualname(func)))
+                return value
+            except KeyError:
+                value = func(*args, **kwargs)
+                cache[key] = value
+                return value
+
+        return wrapper
+
+    return decorator

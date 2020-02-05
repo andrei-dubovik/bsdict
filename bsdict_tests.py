@@ -4,7 +4,7 @@ import importlib
 import bsdict
 # Force reloading (needed during the development cycle)
 importlib.reload(bsdict)
-from bsdict import bsdict
+from bsdict import bsdict, memoizer
 
 CHOICES = [
     lambda: random.randint(2,10),
@@ -102,6 +102,29 @@ class TestsLibrary(unittest.TestCase):
         self.d['b'] = 2
         self.d.clear()
         self.assertEqual(len(self.d), 0)
+
+    def test_memoization(self):
+        counter = 0
+        cached = memoizer()
+
+        @cached
+        def mysum(x, y):
+            nonlocal counter
+            counter += 1
+            return x + y
+
+        @cached
+        def myprod(x, y):
+            nonlocal counter
+            counter += 1
+            return x*y
+
+        for i in range(2):
+            mysum(1, 2)
+            mysum(1, 3)
+            myprod(1, 2)
+
+        self.assertEqual(counter, 3)
 
 
 # Run unit tests
