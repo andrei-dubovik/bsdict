@@ -1,6 +1,6 @@
 from functools import wraps
-from bslt import *
-from farray import *
+from .bslt import *
+from .farray import *
 
 # Define global constants
 WARNING = 'Memoization: loading cached results for {}(...)'
